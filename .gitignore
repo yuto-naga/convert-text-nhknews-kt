@@ -1,3 +1,21 @@
+.DS_Store
+/outputs
+/logs
+
+### Gradle ###
+.gradle
+/build/
+/gradle/
+/gradlew
+/gradlew.bat
+
+### IntelliJ ###
+/.idea
+/.idea/workspace.xml
+/.idea/modules.xml
+/.idea/libraries
+*.iml
+
 # Compiled class file
 *.class
 
