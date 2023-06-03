@@ -20,7 +20,6 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.net.URL
 import java.time.Duration
-import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -44,7 +43,10 @@ private val logger = KotlinLogging.logger {}
 
 private lateinit var driver: WebDriver
 
+private lateinit var now: LocalDateTime
+
 fun main(args: Array<String>) {
+    now = LocalDateTime.now()
     try {
         // ログ初期化
         logInit()
@@ -60,10 +62,12 @@ fun main(args: Array<String>) {
 
         // 記事一覧URLから記事内容を取得してリストに格納
         val articles = mutableListOf<Pair<String, String>>()
-        urlList.forEach {
-            articles.add(getArticle(it))
+        urlList.forEachIndexed { index, url ->
+            val (title, contexts) = getArticle(url, index + 1)
+            // 記事の内容をテキストファイルに変換
+            convertText(title, contexts)
         }
-        convertText(articles)
+
 
     } catch (e: Exception) {
         logger.error("${e.message}")
@@ -85,7 +89,7 @@ fun logInit() {
     val fileAppender = FileAppender<ILoggingEvent>()
     fileAppender.context = context
     fileAppender.name = "FILE"
-    val yyyyMM = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM"))
+    val yyyyMM = now.format(DateTimeFormatter.ofPattern("yyyyMM"))
     fileAppender.file = "$LOG_DIRECTORY/log_$yyyyMM.log"
     val encoder = PatternLayoutEncoder()
     encoder.context = context
@@ -135,8 +139,8 @@ fun getUrls(): List<String> {
 }
 
 /** 記事内容を取得する */
-fun getArticle(targetUrl: String): Pair<String, String> {
-    logger.info("記事内容を取得します 記事URL: " + targetUrl)
+fun getArticle(targetUrl: String, number: Int): Pair<String, String> {
+    logger.info("${number}番目の記事内容を取得します 記事URL: " + targetUrl)
     // 連続してアクセスするので間隔を空ける
     Thread.sleep(3000)
 
@@ -158,7 +162,7 @@ fun getArticle(targetUrl: String): Pair<String, String> {
             )
         )
     } catch (e: TimeoutException) {
-        logger.warn("指定した要素が取得できませんでした。該当の記事URLの取得を中止します。URL: " + targetUrl)
+        logger.warn("${number}番目の指定した要素が取得できませんでした。該当の記事URLの取得を中止します。URL: " + targetUrl)
         return Pair("", "")
     }
     val doc = Jsoup.parse(driver.pageSource)
@@ -189,23 +193,23 @@ fun getArticle(targetUrl: String): Pair<String, String> {
             }
         }
     }
-    return Pair(title, contexts.toString())
+    return Pair("${number}_$title", contexts.toString())
 }
 
 /** テキストファイル化 */
-fun convertText(articlePairs: List<Pair<String, String>>) {
-    logger.info("記事をテキストファイルに変換します")
-    val dateFormat = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH_mm"))
+fun convertText(title: String, contexts: String) {
+    logger.info("記事をテキストファイルに変換します。 タイトル: $title")
+    val dateFormat = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH_mm"))
     val dirPath = "$OUTPUT_BASE_DIRECTORY$dateFormat"
     val dir = File(dirPath)
     if (dir.exists() == false) {
         dir.mkdirs()
     }
-    articlePairs.forEachIndexed { index, articlePair ->
-        val (title, article) = articlePair
-        val articleFile = File("$dirPath/${index + 1}_$title.txt")
-        articleFile.bufferedWriter().use { writer ->
-            writer.write(article)
-        }
+//    articlePairs.forEachIndexed { index, articlePair ->
+//        val (title, article) = articlePair
+    val articleFile = File("$dirPath/$title.txt")
+    articleFile.bufferedWriter().use { writer ->
+        writer.write(contexts)
     }
+//    }
 }
