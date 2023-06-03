@@ -111,9 +111,7 @@ fun getAnchors(rankingUrl: String): Elements? {
     // 定義した上条件で待機する(最大20秒)
     val wait = WebDriverWait(driver, Duration.ofSeconds(20))
     // NAMEで指定したページ上の要素が読み込まれるまで待機
-    val element = wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("em")))
-
-//    html = driver.page_source.encode('UTF-8')
+    wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("em")))
     val doc = Jsoup.parse(driver.pageSource)
     // アクセスランキングの範囲を対象に抽出
     val section = doc.select("section.content--items").first()
