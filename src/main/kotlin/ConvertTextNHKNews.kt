@@ -21,6 +21,7 @@ import java.io.File
 import java.net.URL
 import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 /** NHK BASE URL */
@@ -84,8 +85,8 @@ fun logInit() {
     val fileAppender = FileAppender<ILoggingEvent>()
     fileAppender.context = context
     fileAppender.name = "FILE"
-    val YYYYMM = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM"))
-    fileAppender.file = "$LOG_DIRECTORY/log_$YYYYMM.log"
+    val yyyyMM = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM"))
+    fileAppender.file = "$LOG_DIRECTORY/log_$yyyyMM.log"
     val encoder = PatternLayoutEncoder()
     encoder.context = context
     encoder.pattern = "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
@@ -196,7 +197,7 @@ fun getArticle(targetUrl: String): Pair<String, String> {
 /** テキストファイル化 */
 fun convertText(articlePairs: List<Pair<String, String>>) {
     logger.info("記事をテキストファイルに変換します")
-    val dateFormat = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+    val dateFormat = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH_mm"))
     val dirPath = "$OUTPUT_BASE_DIRECTORY$dateFormat"
     val dir = File(dirPath)
     if (dir.exists() == false) {
