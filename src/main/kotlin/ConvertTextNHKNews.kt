@@ -61,7 +61,6 @@ fun main(args: Array<String>) {
         val urlList = getUrls()
 
         // 記事一覧URLから記事内容を取得してリストに格納
-        val articles = mutableListOf<Pair<String, String>>()
         urlList.forEachIndexed { index, url ->
             val (title, contexts) = getArticle(url, index + 1)
             // 記事の内容をテキストファイルに変換
@@ -205,11 +204,8 @@ fun convertText(title: String, contexts: String) {
     if (dir.exists() == false) {
         dir.mkdirs()
     }
-//    articlePairs.forEachIndexed { index, articlePair ->
-//        val (title, article) = articlePair
     val articleFile = File("$dirPath/$title.txt")
     articleFile.bufferedWriter().use { writer ->
         writer.write(contexts)
     }
-//    }
 }
