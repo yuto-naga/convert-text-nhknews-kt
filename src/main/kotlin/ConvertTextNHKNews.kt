@@ -35,6 +35,9 @@ const val NHK_SOCIAL_RANKING_URL = "$NHK_BASE_URL/news/ranking/social.html"
 /** 記事タイトルから取得しないワードのリスト */
 val NOT_INTEREST_WORDS = listOf("駅伝")
 
+/** voicevox docker */
+const val VOICE_VOX_URL = "http://localhost:50021"
+
 /** Output */
 const val OUTPUT_BASE_DIRECTORY = "outputs/"
 const val LOG_DIRECTORY = "logs"
