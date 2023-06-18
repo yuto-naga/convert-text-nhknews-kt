@@ -9,7 +9,10 @@ import java.net.http.HttpResponse
 object VoicevoxHelper {
     private val client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build()
 
-    private val baseURL = "http://localhost:50021"
+    private const val BASE_URL = "http://localhost:50021"
+
+    // TODO スピーカーはめたん:ノーマル固定
+    private val SPEAKER_NORMAL_META = "speaker" to "2"
 
     /**
      * 音声合成用のクエリを作成する
@@ -17,10 +20,9 @@ object VoicevoxHelper {
      * @return クエリ(json形式)
      */
     fun createAudioQuery(context: String): String {
-        // TODO スピーカーはめたん:ノーマル固定
-        val queryParams = mapOf("speaker" to "2", "text" to context)
+        val queryParams = mapOf(SPEAKER_NORMAL_META, "text" to context)
         val queryString = queryParams.map { "${it.key}=${it.value}" }.joinToString("&")
-        val urlWithParams = "${baseURL}/audio_query?$queryString"
+        val urlWithParams = "${BASE_URL}/audio_query?$queryString"
         val request = HttpRequest.newBuilder()
             .uri(URI.create(urlWithParams))
             .POST(HttpRequest.BodyPublishers.noBody())
@@ -40,10 +42,9 @@ object VoicevoxHelper {
      * @return byteArrayを返す？
      */
     fun createSynthesis(query: String) {
-        // TODO スピーカーはめたん:ノーマル固定
-        val queryParams = mapOf("speaker" to "2")
+        val queryParams = mapOf(SPEAKER_NORMAL_META)
         val queryString = queryParams.map { "${it.key}=${it.value}" }.joinToString("&")
-        val urlWithParams = "${baseURL}/synthesis?$queryString"
+        val urlWithParams = "${BASE_URL}/synthesis?$queryString"
         val request = HttpRequest.newBuilder()
             .uri(URI.create(urlWithParams))
             .POST(HttpRequest.BodyPublishers.ofString(query))
