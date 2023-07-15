@@ -6,12 +6,10 @@ import org.junit.jupiter.api.Test
 class VoicevoxHelperTest {
     @Test
     fun createAudioQueryTest() {
-        val result = VoicevoxHelper.createAudioQuery("これはテストです。テストテキスト")
-        println(result)
+        val result = VoicevoxHelper.createAudioQuery("りんご")
         assertNotNull(result)
-
-        val voiceFile = VoicevoxHelper.createSynthesis(result)
-        println(voiceFile)
-
+        val audioBytes = VoicevoxHelper.createSynthesis(result)
+        assertNotNull(audioBytes)
     }
+
 }
