@@ -16,6 +16,7 @@ dependencies {
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
     implementation("ch.qos.logback:logback-core:1.4.7")
     implementation("ch.qos.logback:logback-classic:1.4.7")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
     testImplementation(kotlin("test"))
 }
 

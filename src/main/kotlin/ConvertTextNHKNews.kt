@@ -17,11 +17,17 @@ import org.openqa.selenium.support.ui.ExpectedConditions
 import org.openqa.selenium.support.ui.WebDriverWait
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import resources.VoicevoxHelper
+import resources.utils.ExceptionUtil
 import java.io.File
+import java.io.FileOutputStream
 import java.net.URL
+import java.net.URLEncoder
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.*
+
 
 /** NHK BASE URL */
 const val NHK_BASE_URL = "https://www3.nhk.or.jp"
@@ -35,9 +41,6 @@ const val NHK_SOCIAL_RANKING_URL = "$NHK_BASE_URL/news/ranking/social.html"
 /** 記事タイトルから取得しないワードのリスト */
 val NOT_INTEREST_WORDS = listOf("駅伝")
 
-/** voicevox docker */
-const val VOICE_VOX_URL = "http://localhost:50021"
-
 /** Output */
 const val OUTPUT_BASE_DIRECTORY = "outputs/"
 const val LOG_DIRECTORY = "logs"
@@ -50,11 +53,12 @@ private lateinit var now: LocalDateTime
 
 fun main(args: Array<String>) {
     now = LocalDateTime.now()
+    // ログ初期化
+    logInit()
+    // スクレイピング
+    val articles = mutableListOf<Pair<String, String>>()
     try {
-        // ログ初期化
-        logInit()
         logger.info("**NHKニュースサイトから取得開始します**")
-
         val options = ChromeOptions()
         // 画面を描画しない
         options.addArguments("--headless")
@@ -65,19 +69,34 @@ fun main(args: Array<String>) {
 
         // 記事一覧URLから記事内容を取得してリストに格納
         urlList.forEachIndexed { index, url ->
-            val (title, contexts) = getArticle(url, index + 1)
-            // 記事の内容をテキストファイルに変換
-            convertText(title, contexts)
+            articles.add(getArticle(url, index + 1))
         }
-
-
     } catch (e: Exception) {
         logger.error("${e.message}")
-        logger.error("${e.stackTrace}")
+        val stackTraceStr = ExceptionUtil.getStackTrace(e)
+        logger.error("$stackTraceStr")
     } finally {
         logger.info("**NHKニュースサイトから取得終了します**")
         // ブラウザを終了する
         driver.quit()
+    }
+
+    // テキスト・音声ファイル化
+    logger.info("**${articles.size} 件の記事をテキスト・音声ファイルに変換します**")
+    try {
+        // 記事一覧URLから記事内容を取得してリストに格納
+        articles.forEach { (title, context) ->
+            // 記事の内容をテキストファイルに変換
+            convertText(title, context)
+            // 記事の内容を音声ファイルに変換
+            convertAudioFile(title, context)
+        }
+    } catch (e: Exception) {
+        logger.error("${e.message}")
+        val stackTraceStr = ExceptionUtil.getStackTrace(e)
+        logger.error("$stackTraceStr")
+    } finally {
+        logger.info("**テキスト・音声ファイルに変換を終了します**")
     }
 }
 
@@ -147,7 +166,7 @@ fun getArticle(targetUrl: String, number: Int): Pair<String, String> {
     Thread.sleep(3000)
 
     // 結果を格納する記事内容
-    val contexts = StringBuilder()
+    val context = StringBuilder()
 
     driver.get(targetUrl)
 
@@ -170,36 +189,36 @@ fun getArticle(targetUrl: String, number: Int): Pair<String, String> {
     val doc = Jsoup.parse(driver.pageSource)
 
     // タイトルを抽出
-    contexts.appendLine("~~タイトル~~")
+    context.appendLine("~~タイトル~~")
     val title = doc.selectFirst("h1")?.text()?.replace("\n", "") ?: ""
-    contexts.appendLine(title)
+    context.appendLine(title)
 
     // サマリを抽出
     val summaryContents = doc.select(".content--summary, .content--summary-more")
     if (summaryContents.isNotEmpty()) {
-        contexts.appendLine("~~要約~~")
+        context.appendLine("~~要約~~")
         summaryContents.forEach { summary ->
-            contexts.appendLine(convertPunctuation(summary.text()))
+            context.appendLine(convertPunctuation(summary.text()))
         }
     }
 
     // 本文を抽出
     val detailContents = doc.select(".body-title, .body-text")
     if (detailContents.isNotEmpty()) {
-        contexts.appendLine("~~内容~~")
+        context.appendLine("~~内容~~")
         detailContents.forEach { detailContent ->
             when (detailContent.attr("class")) {
-                "body-title" -> contexts.appendLine(convertPunctuation(detailContent.text()))
-                "body-text" -> contexts.appendLine(convertPunctuation(detailContent.text()))
+                "body-title" -> context.appendLine(convertPunctuation(detailContent.text()))
+                "body-text" -> context.appendLine(convertPunctuation(detailContent.text()))
                 else -> logger.warn("本文から想定していないclassがありました ${detailContent.attr("class")}")
             }
         }
     }
-    return Pair("${number}_$title", contexts.toString())
+    return Pair("${number}_$title", context.toString())
 }
 
 /** テキストファイル化 */
-fun convertText(title: String, contexts: String) {
+fun convertText(title: String, context: String) {
     logger.info("記事をテキストファイルに変換します。 タイトル: $title")
     val dateFormat = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH_mm"))
     val dirPath = "$OUTPUT_BASE_DIRECTORY$dateFormat"
@@ -209,6 +228,76 @@ fun convertText(title: String, contexts: String) {
     }
     val articleFile = File("$dirPath/$title.txt")
     articleFile.bufferedWriter().use { writer ->
-        writer.write(contexts)
+        writer.write(context)
     }
+}
+
+/** wavファイル化 */
+fun convertAudioFile(title: String, context: String) {
+    logger.info("記事を音声ファイルに変換します。 タイトル: $title")
+    val splitContents = splitLongString(context, 120)
+    val audioBytesList = splitContents.map {
+        // voicevox-apiから音声合成用のクエリを取得
+        val query = VoicevoxHelper.createAudioQuery(URLEncoder.encode(it, "UTF-8"))
+        // voicevox-apiから音声合成する
+        val audioBytes = VoicevoxHelper.createSynthesis(query)
+        Base64.getEncoder().encodeToString(audioBytes)
+    }
+    val mergedAudioBytes = VoicevoxHelper.mergeWaves(audioBytesList)
+    val dateFormat = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH_mm"))
+    val dirPath = "$OUTPUT_BASE_DIRECTORY$dateFormat/audio"
+    val dir = File(dirPath)
+    if (dir.exists() == false) {
+        dir.mkdirs()
+    }
+    saveByteArrayToFile(mergedAudioBytes, "$dirPath/$title.wav")
+}
+
+
+/** ByteArrayをファイル化 */
+fun saveByteArrayToFile(byteArray: ByteArray, filePath: String) {
+    val file = File(filePath)
+    val fileOutputStream = FileOutputStream(file)
+    fileOutputStream.write(byteArray)
+    fileOutputStream.close()
+}
+
+/**
+ * 記事内容を特定の文字数で分割する
+ * 方針: 改行ごとに区切った/結合要素が 引数:splitNum より大きい文字数になっても気にしない。おおよそで良いので。
+ *
+ * 1.改行ごとに区切る
+ * 2.引数:splitNum以下であれば次の要素を結合する
+ * 3. splitNumより文字数が大きくなるまで2を繰り返す
+ * @param content 記事内容
+ * @param splitNum 区切るおおよその文字数
+ * @return
+ */
+fun splitLongString(content: String, splitNum: Int): List<String> {
+    // まず改行で分割する
+    val lines = content.split("\n")
+    val result = mutableListOf<String>()
+
+    var currentChunk = StringBuilder()
+
+    for (line in lines) {
+        val trimmedLine = line.trim()
+        if (currentChunk.length <= splitNum) {
+            // splitNum以下なら現在のチャンクに連結
+            currentChunk.append(trimmedLine)
+            currentChunk.append("\n") // 改行も連結
+        } else {
+            // splitNumを超える場合、現在のチャンクを結果に追加して新しいチャンクを作成
+            if (currentChunk.isNotEmpty()) {
+                result.add(currentChunk.toString().trim())
+                currentChunk = StringBuilder(trimmedLine)
+                currentChunk.append("\n")
+            }
+        }
+    }
+    // 最後のチャンクを追加
+    if (currentChunk.isNotEmpty()) {
+        result.add(currentChunk.toString().trim())
+    }
+    return result
 }

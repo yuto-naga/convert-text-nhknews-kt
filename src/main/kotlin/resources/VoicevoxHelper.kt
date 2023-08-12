@@ -1,9 +1,11 @@
 package resources
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+
 
 object VoicevoxHelper {
     private val client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build()
@@ -53,7 +55,33 @@ object VoicevoxHelper {
 
         val response = client.send(request, HttpResponse.BodyHandlers.ofByteArray())
         if (response.statusCode() != 200) {
-            throw RuntimeException("${response.statusCode()} ${response.body()}")
+            throw RuntimeException("${response.statusCode()} ${response.body().decodeToString()}")
+        }
+        val headers = response.headers()
+        val contentType: String = headers.firstValue("Content-Type").orElse("")
+
+        if (contentType == "audio/wav") {
+            return response.body()
+        } else {
+            throw RuntimeException("Received content is not of type audio/wav.")
+        }
+    }
+
+    /**
+     * base64エンコードされた複数のwavデータを一つに結合する
+     * @param waves wavデータ
+     */
+    fun mergeWaves(waves: List<String>): ByteArray {
+        val url = "${BASE_URL}/connect_waves"
+        val jsonBody = ObjectMapper().writeValueAsString(waves)
+        val request = HttpRequest.newBuilder().uri(URI.create(url))
+            .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+            .header("Accept", "*/*")
+            .build()
+
+        val response = client.send(request, HttpResponse.BodyHandlers.ofByteArray())
+        if (response.statusCode() != 200) {
+            throw RuntimeException("${response.statusCode()} ${response.body().decodeToString()}")
         }
         val headers = response.headers()
         val contentType: String = headers.firstValue("Content-Type").orElse("")
