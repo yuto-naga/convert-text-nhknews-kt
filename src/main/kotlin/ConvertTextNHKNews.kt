@@ -18,6 +18,8 @@ import org.openqa.selenium.support.ui.WebDriverWait
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import resources.VoicevoxHelper
+import resources.types.ArticleContextStatus
+import resources.types.VoicevoxSpeakerType
 import resources.utils.ExceptionUtil
 import java.io.File
 import java.io.FileOutputStream
@@ -233,14 +235,17 @@ fun convertText(title: String, context: String) {
 }
 
 /** wavファイル化 */
-fun convertAudioFile(title: String, context: String) {
+fun convertAudioFile(title: String, content: String) {
     logger.info("記事を音声ファイルに変換します。 タイトル: $title")
-    val splitContents = splitLongString(context, 120)
-    val audioBytesList = splitContents.map {
+    val splitContents = splitLongString(content, 120)
+    val audioBytesList = splitContents.map { (splitContent, status) ->
         // voicevox-apiから音声合成用のクエリを取得
-        val query = VoicevoxHelper.createAudioQuery(URLEncoder.encode(it, "UTF-8"))
+        val query = VoicevoxHelper.createAudioQuery(
+            URLEncoder.encode(splitContent, "UTF-8"),
+            VoicevoxSpeakerType.四国めたん.ノーマル.id
+        )
         // voicevox-apiから音声合成する
-        val audioBytes = VoicevoxHelper.createSynthesis(query)
+        val audioBytes = VoicevoxHelper.createSynthesis(query, VoicevoxSpeakerType.四国めたん.ノーマル.id)
         Base64.getEncoder().encodeToString(audioBytes)
     }
     val mergedAudioBytes = VoicevoxHelper.mergeWaves(audioBytesList)
@@ -271,12 +276,12 @@ fun saveByteArrayToFile(byteArray: ByteArray, filePath: String) {
  * 3. splitNumより文字数が大きくなるまで2を繰り返す
  * @param content 記事内容
  * @param splitNum 区切るおおよその文字数
- * @return
+ * @return List<Pair<区切った記事内容, 記事の状態>>
  */
-fun splitLongString(content: String, splitNum: Int): List<String> {
+fun splitLongString(content: String, splitNum: Int): List<Pair<String, Int>> {
     // まず改行で分割する
     val lines = content.split("\n")
-    val result = mutableListOf<String>()
+    val result = mutableListOf<Pair<String, Int>>()
 
     var currentChunk = StringBuilder()
 
@@ -289,7 +294,7 @@ fun splitLongString(content: String, splitNum: Int): List<String> {
         } else {
             // splitNumを超える場合、現在のチャンクを結果に追加して新しいチャンクを作成
             if (currentChunk.isNotEmpty()) {
-                result.add(currentChunk.toString().trim())
+                result.add(currentChunk.toString().trim() to ArticleContextStatus.通常.intValue)
                 currentChunk = StringBuilder(trimmedLine)
                 currentChunk.append("\n")
             }
@@ -297,7 +302,7 @@ fun splitLongString(content: String, splitNum: Int): List<String> {
     }
     // 最後のチャンクを追加
     if (currentChunk.isNotEmpty()) {
-        result.add(currentChunk.toString().trim())
+        result.add(currentChunk.toString().trim() to ArticleContextStatus.通常.intValue)
     }
     return result
 }

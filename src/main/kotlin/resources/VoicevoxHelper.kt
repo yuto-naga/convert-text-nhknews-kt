@@ -1,6 +1,7 @@
 package resources
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import resources.types.VoicevoxSpeakerType
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -20,8 +21,8 @@ object VoicevoxHelper {
      * @param context クエリを作成するテキスト内容
      * @return クエリ(json形式)
      */
-    fun createAudioQuery(context: String): String {
-        val queryParams = mapOf(SPEAKER_NORMAL_METAN, "text" to context)
+    fun createAudioQuery(context: String, speakerId: Int = VoicevoxSpeakerType.四国めたん.ノーマル.id): String {
+        val queryParams = mapOf("speaker" to speakerId, "text" to context)
         val queryString = queryParams.map { "${it.key}=${it.value}" }.joinToString("&")
         val urlWithParams = "${BASE_URL}/audio_query?$queryString"
         val request = HttpRequest.newBuilder()
@@ -43,8 +44,8 @@ object VoicevoxHelper {
      * @param query クエリ(json)
      * @return byteArray
      */
-    fun createSynthesis(query: String): ByteArray {
-        val queryParams = mapOf(SPEAKER_NORMAL_METAN)
+    fun createSynthesis(query: String, speakerId: Int = VoicevoxSpeakerType.四国めたん.ノーマル.id): ByteArray {
+        val queryParams = mapOf("speaker" to speakerId)
         val queryString = queryParams.map { "${it.key}=${it.value}" }.joinToString("&")
         val urlWithParams = "${BASE_URL}/synthesis?$queryString"
         val request = HttpRequest.newBuilder()
