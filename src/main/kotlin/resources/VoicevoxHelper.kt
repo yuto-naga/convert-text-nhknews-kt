@@ -13,16 +13,16 @@ object VoicevoxHelper {
 
     private const val BASE_URL = "http://localhost:50021"
 
-    // TODO スピーカーはめたん:ノーマル固定
-    private val SPEAKER_NORMAL_METAN = "speaker" to "2"
-
     /**
      * 音声合成用のクエリを作成する
      * @param context クエリを作成するテキスト内容
      * @return クエリ(json形式)
      */
-    fun createAudioQuery(context: String, speakerId: Int = VoicevoxSpeakerType.四国めたん.ノーマル.id): String {
-        val queryParams = mapOf("speaker" to speakerId, "text" to context)
+    fun createAudioQuery(
+        context: String,
+        speakerType: VoicevoxSpeakerType = VoicevoxSpeakerType.四国めたん.ノーマル
+    ): String {
+        val queryParams = mapOf("speaker" to speakerType.id, "text" to context)
         val queryString = queryParams.map { "${it.key}=${it.value}" }.joinToString("&")
         val urlWithParams = "${BASE_URL}/audio_query?$queryString"
         val request = HttpRequest.newBuilder()
@@ -44,8 +44,11 @@ object VoicevoxHelper {
      * @param query クエリ(json)
      * @return byteArray
      */
-    fun createSynthesis(query: String, speakerId: Int = VoicevoxSpeakerType.四国めたん.ノーマル.id): ByteArray {
-        val queryParams = mapOf("speaker" to speakerId)
+    fun createSynthesis(
+        query: String,
+        speakerType: VoicevoxSpeakerType = VoicevoxSpeakerType.四国めたん.ノーマル
+    ): ByteArray {
+        val queryParams = mapOf("speaker" to speakerType.id)
         val queryString = queryParams.map { "${it.key}=${it.value}" }.joinToString("&")
         val urlWithParams = "${BASE_URL}/synthesis?$queryString"
         val request = HttpRequest.newBuilder()

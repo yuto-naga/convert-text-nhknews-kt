@@ -19,6 +19,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import resources.VoicevoxHelper
 import resources.types.ArticleContextStatus
+import resources.types.BracketType
 import resources.types.VoicevoxSpeakerType
 import resources.utils.ExceptionUtil
 import java.io.File
@@ -87,7 +88,7 @@ fun main(args: Array<String>) {
     logger.info("**${articles.size} 件の記事をテキスト・音声ファイルに変換します**")
     try {
         // 記事一覧URLから記事内容を取得してリストに格納
-        articles.forEach { (title, context) ->
+        articles.filterIndexed { index, pair -> index == 2 }.forEach { (title, context) ->
             // 記事の内容をテキストファイルに変換
             convertText(title, context)
             // 記事の内容を音声ファイルに変換
@@ -239,13 +240,16 @@ fun convertAudioFile(title: String, content: String) {
     logger.info("記事を音声ファイルに変換します。 タイトル: $title")
     val splitContents = splitLongString(content, 120)
     val audioBytesList = splitContents.map { (splitContent, status) ->
+        val speakerType =
+            if (status == ArticleContextStatus.括弧の中) VoicevoxSpeakerType.ずんだもん.ノーマル else VoicevoxSpeakerType.四国めたん.ノーマル
+
         // voicevox-apiから音声合成用のクエリを取得
         val query = VoicevoxHelper.createAudioQuery(
             URLEncoder.encode(splitContent, "UTF-8"),
-            VoicevoxSpeakerType.四国めたん.ノーマル.id
+            speakerType
         )
         // voicevox-apiから音声合成する
-        val audioBytes = VoicevoxHelper.createSynthesis(query, VoicevoxSpeakerType.四国めたん.ノーマル.id)
+        val audioBytes = VoicevoxHelper.createSynthesis(query, speakerType)
         Base64.getEncoder().encodeToString(audioBytes)
     }
     val mergedAudioBytes = VoicevoxHelper.mergeWaves(audioBytesList)
@@ -271,38 +275,52 @@ fun saveByteArrayToFile(byteArray: ByteArray, filePath: String) {
  * 記事内容を特定の文字数で分割する
  * 方針: 改行ごとに区切った/結合要素が 引数:splitNum より大きい文字数になっても気にしない。おおよそで良いので。
  *
- * 1.改行ごとに区切る
- * 2.引数:splitNum以下であれば次の要素を結合する
- * 3. splitNumより文字数が大きくなるまで2を繰り返す
+ * 1. 引用符とそれ以外で区切る
+ * 2. 1でループする。引用符かそれ以外のステータスを持っておく
+ * 3.改行ごとに区切る
+ * 4.引数:splitNum以下であれば次の要素を結合する
+ * 5. splitNumより文字数が大きくなるまで2を繰り返す
  * @param content 記事内容
  * @param splitNum 区切るおおよその文字数
  * @return List<Pair<区切った記事内容, 記事の状態>>
  */
-fun splitLongString(content: String, splitNum: Int): List<Pair<String, Int>> {
-    // まず改行で分割する
-    val lines = content.split("\n")
-    val result = mutableListOf<Pair<String, Int>>()
+fun splitLongString(content: String, splitNum: Int): List<Pair<String, ArticleContextStatus>> {
+    // 引用符とそれ以外で分割する
+    val pattern =
+        """(${BracketType.かぎ括弧.openValue}[^${BracketType.かぎ括弧.closeValue}]*${BracketType.かぎ括弧.closeValue}|[^${BracketType.かぎ括弧.openValue}]+)""".toRegex()
+    val substringsWithQuotes = pattern.findAll(content).map { it.value }.toList()
+    val results = mutableListOf<Pair<String, ArticleContextStatus>>()
 
-    var currentChunk = StringBuilder()
-
-    for (line in lines) {
-        val trimmedLine = line.trim()
-        if (currentChunk.length <= splitNum) {
-            // splitNum以下なら現在のチャンクに連結
-            currentChunk.append(trimmedLine)
-            currentChunk.append("\n") // 改行も連結
-        } else {
-            // splitNumを超える場合、現在のチャンクを結果に追加して新しいチャンクを作成
-            if (currentChunk.isNotEmpty()) {
-                result.add(currentChunk.toString().trim() to ArticleContextStatus.通常.intValue)
-                currentChunk = StringBuilder(trimmedLine)
-                currentChunk.append("\n")
+    substringsWithQuotes.forEach { substringsWithQuote ->
+        val currentArticleContextStatus =
+            if (substringsWithQuote.startsWith(BracketType.かぎ括弧.openValue) && substringsWithQuote.endsWith(
+                    BracketType.かぎ括弧.closeValue
+                )
+            )
+                ArticleContextStatus.括弧の中
+            else ArticleContextStatus.通常
+        // 改行で分割する
+        val lines = substringsWithQuote.split("\n")
+        var currentChunk = StringBuilder()
+        for (line in lines) {
+            val trimmedLine = line.trim()
+            if (currentChunk.length <= splitNum) {
+                // splitNum以下なら現在のチャンクに連結
+                currentChunk.append(trimmedLine)
+                currentChunk.append("\n") // 改行も連結
+            } else {
+                // splitNumを超える場合、現在のチャンクを結果に追加して新しいチャンクを作成
+                if (currentChunk.isNotEmpty()) {
+                    results.add(currentChunk.toString().trim() to currentArticleContextStatus)
+                    currentChunk = StringBuilder(trimmedLine)
+                    currentChunk.append("\n")
+                }
             }
         }
+        // 最後のチャンクを追加
+        if (currentChunk.isNotEmpty()) {
+            results.add(currentChunk.toString().trim() to currentArticleContextStatus)
+        }
     }
-    // 最後のチャンクを追加
-    if (currentChunk.isNotEmpty()) {
-        result.add(currentChunk.toString().trim() to ArticleContextStatus.通常.intValue)
-    }
-    return result
+    return results
 }
